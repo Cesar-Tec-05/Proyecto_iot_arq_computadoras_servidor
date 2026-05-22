@@ -22,77 +22,120 @@
   [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
 ## Description
-
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
-## Project setup
+## API del proyecto
+Este backend expone los siguientes endpoints para el front y el ESP32:
+- `POST /auth/register` para crear usuario (username/password) en MongoDB.
+- `POST /auth/login` para obtener JWT.
+- `GET /auth/me` para validar sesión (requiere `Authorization: Bearer <token>`).
+- `GET /esp/rele?state=on|off` para prender o apagar la cerradura electronica (requiere JWT).
+- `GET /esp/logs` para leer el historial guardado en MongoDB.
+- `POST /esp/receive-state` para registrar cambios enviados por el microcontrolador.
+
+Variables de entorno relevantes:
+
+- `PORT` para el puerto HTTP del backend, por defecto `3000`.
+## Documentación de la API
+
+Este repositorio contiene el backend (NestJS) que expone una API para controlar una cerradura electrónica conectada a un ESP32 y almacenar un historial de eventos en MongoDB.
+
+Endpoints principales
+
+- `POST /auth/register` — Crear un usuario. Body JSON: `{ "username": "usuario", "password": "secreto" }`.
+- `POST /auth/login` — Autenticar y recibir JWT. Body JSON: `{ "username": "usuario", "password": "secreto" }`. Respuesta: `{ "accessToken": "<token>", "user": { ... } }`.
+- `GET /auth/me` — Obtener datos del usuario autenticado. Requiere cabecera `Authorization: Bearer <token>`.
+- `GET /esp/rele?state=on|off` — Encender/apagar la cerradura electrónica en el ESP. Requiere JWT en `Authorization`.
+- `GET /esp/logs` — Obtener el historial de eventos guardado en MongoDB. Requiere JWT.
+- `POST /esp/receive-state` — Endpoint abierto para que el ESP envíe eventos/estados. Body JSON ejemplo: `{ "action": "on", "source": "esp32-1", "timestamp": "2026-05-21T12:00:00Z" }`.
+
+Documentación OpenAPI / ReDoc
+
+- YAML OpenAPI: `GET /doc.yml`
+- Interfaz ReDoc: `GET /docs`
+
+Ejemplos (curl)
+
+Registrar usuario:
 
 ```bash
-$ npm install
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","password":"demo123"}'
 ```
 
-## Compile and run the project
+Login (obtén `accessToken`):
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","password":"demo123"}'
 ```
 
-## Run tests
+Llamada protegida (usar token obtenido):
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+TOKEN="ey..."
+curl -X GET "http://localhost:3000/esp/rele?state=on" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Enviar un evento desde el ESP (sin autenticación):
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+curl -X POST http://localhost:3000/esp/receive-state \
+  -H "Content-Type: application/json" \
+  -d '{"action":"on","source":"esp32-1","timestamp":"2026-05-21T12:00:00Z"}'
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Variables de entorno importantes
 
-## Resources
+- `PORT` — Puerto HTTP del backend (por defecto `3000`).
+- `MONGO_URI` — URI de conexión a MongoDB (ejemplo: `mongodb://mongo:27017/iot`).
+- `ESP_BASE_URL` — URL base del ESP (ejemplo: `http://10.0.0.50`). La API enviará peticiones a `ESP_BASE_URL/rele?state=on|off`.
+- `ESP_TIMEOUT_MS` — Timeout para peticiones al ESP en ms (por defecto `10000`).
+- `JWT_ACCESS_SECRET` — Clave secreta para firmar JWT.
+- `JWT_EXPIRES_IN` — Duración del JWT (ejemplo: `1h`).
+- `BCRYPT_SALT_ROUNDS` — Rondas para bcrypt al hashear contraseñas.
 
-Check out a few resources that may come in handy when working with NestJS:
+Ejecución local
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+# instalar dependencias
+npm install
 
-## Support
+# modo desarrollo (con watch)
+npm run start:dev
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+# modo producción (build + start)
+npm run build
+npm run start:prod
+```
 
-## Stay in touch
+Ejecución con Docker / Docker Compose
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+En la raíz del workspace hay un `docker-compose.yml` que inicia `mongo`, `backend` y `frontend`. Para levantar todo:
 
-## License
+```bash
+docker-compose up --build
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Nota sobre conexión al ESP desde Docker: si el ESP está en la misma red local, asegúrate de que el contenedor del backend pueda acceder a su IP. En entornos Linux puedes usar `network_mode: host` en Docker Compose o exponer redes adecuadas; alternativamente establece `ESP_BASE_URL` apuntando a la IP accesible desde el contenedor.
+
+Buenas prácticas y seguridad
+
+- Guarda `JWT_ACCESS_SECRET` y `MONGO_URI` en variables de entorno fuera del repositorio.
+- Para producción considera usar HTTPS, rotación de claves, refresh tokens y limitación de tasa.
+
+Dónde encontrar la documentación interactiva
+
+- La UI de ReDoc está disponible en: `/docs` (por ejemplo `http://localhost:3000/docs`).
+- El archivo OpenAPI YAML está en: `/doc.yml`.
+
+Contacto y recursos
+
+Para más información sobre NestJS visita: https://docs.nestjs.com
+
+---
+
+Archivo del proyecto (frontend, docker-compose y archivos auxiliares) se encuentran en la raíz del workspace. Esta sección documenta únicamente la API del backend y cómo consumirla.

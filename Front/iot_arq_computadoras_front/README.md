@@ -1,59 +1,68 @@
 # IotArqComputadorasFront
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.11.
+Front Angular para controlar un ESP32 a través de la API Nest.
 
-## Development server
+Resumen rápido
 
-To start a local development server, run:
+- Rutas importantes consumidas por el front (proxy `/api`):
+	- `POST /api/auth/register` — Registrar usuario.
+	- `POST /api/auth/login` — Login, devuelve `accessToken`.
+	- `GET /api/auth/me` — Verificar token y obtener usuario.
+	- `GET /api/esp/rele?state=on|off` — Encender/apagar el relé (protegido).
+	- `GET /api/esp/logs` — Obtener historial (protegido).
+	- `POST /api/esp/receive-state` — Endpoint que usa el ESP para notificar eventos (público en el backend).
 
-```bash
-ng serve
-```
+Autenticación y sesión
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+- El front guarda el token JWT en `localStorage` bajo la clave `auth_token`.
+- Las rutas protegidas usan un guard que valida el token llamando a `GET /api/auth/me`. Si el backend responde `401`, el front limpia la sesión y redirige a `/login`.
 
-## Code scaffolding
+Estructura del servidor SSR y proxy `/api`
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+- El servidor SSR (archivo `src/server.ts`) reenvía todas las peticiones que comienzan por `/api` al backend definido por la variable de entorno `BACKEND_URL`.
+- Valor por defecto en producción/Docker: `http://backend:3000`.
+- Para desarrollo local, exporta `BACKEND_URL=http://localhost:3000` antes de arrancar el servidor SSR.
 
-```bash
-ng generate component component-name
-```
+Comandos útiles
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
+- Desarrollo (Angular dev server):
 
 ```bash
-ng build
+npm install
+npm run start   # ng serve
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+- Compilar bundles (client + server):
 
 ```bash
-ng test
+npm run build
 ```
 
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
+- Servir la versión SSR compilada (asegúrate de establecer `BACKEND_URL` si el backend está en localhost):
 
 ```bash
-ng e2e
+# desde la raíz del frontend
+BACKEND_URL=http://localhost:3000 node dist/iot_arq_computadoras_front/server/server.mjs
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+- Si corres con Docker Compose (recomendado para entorno integrado), utiliza el `docker-compose.yml` en la raíz del workspace:
 
-## Additional Resources
+```bash
+docker-compose up --build
+```
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+ReDoc / Documentación de la API
+- La especificación OpenAPI y la UI de ReDoc están expuestas por el backend en:
+	- `http://<backend-host>:3000/esp/doc.yml` (spec YAML)
+	- `http://<backend-host>:3000/esp/docs` (UI ReDoc)
+
+Buenas prácticas para desarrollo y producción
+- No guardes secretos en el repositorio. Para el backend usa variables de entorno: `JWT_SECRET`, `MONGO_URI`, etc.
+- Para desarrollo local puedes usar un `.env` (NO commitearlo). Para producción usa un gestor de secretos o las variables del orquestador.
+
+Comportamiento al recargar la página
+- El guard del front comprueba la validez del JWT con `GET /api/auth/me` al activar rutas protegidas. Si el token es inválido o expirado, el usuario será expulsado a la pantalla de login.
+
+Errores comunes y soluciones
+- 404 al cargar la documentación ReDoc: asegúrate de que el backend está corriendo y que `doc.yml` está disponible en `http://localhost:3000/esp/doc.yml`.
+- El frontend muestra sesión activa pero al recargar no funciona: revisa `localStorage` y el valor de `BACKEND_URL` si usas SSR.

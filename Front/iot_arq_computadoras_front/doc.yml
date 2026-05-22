@@ -1,0 +1,6 @@
+openapi: 3.0.3
+info:
+  title: Front API IoT Cerradura Electrónica (Angular)
+  version: 1.0.0
+  description: Documentación del frontend Angular para el proyecto de IoT Cerradura Electrónica.
+

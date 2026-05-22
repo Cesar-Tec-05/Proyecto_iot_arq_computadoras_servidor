@@ -1,0 +1,63 @@
+<main class="shell">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Protocolo HTTP</p>
+      <h1>Panel de control de la Cerradura</h1>
+      <p class="lead">
+        Control y Historial :D
+      </p>
+
+      <div class="status-row">
+        <span class="status-dot" [class.on]="ledState() === 'on'"></span>
+        <span class="status-text">Estado actual: {{ ledState() === 'on' ? 'ABIERTO' : 'CERRADO' }}</span>
+        <span class="status-badge">{{ busy() ? 'Enviando...' : 'Listo' }}</span>
+        <button type="button" class="ghost" (click)="logout()">Salir</button>
+      </div>
+
+      <p class="message" [class.error]="!!error()">{{ error() || status() }}</p>
+    </div>
+
+    <div class="hero-card">
+      <div class="button-grid">
+        <button type="button" class="primary on" (click)="turnLed('on')" [disabled]="busy()">
+          Abrir
+        </button>
+        <button type="button" class="primary off" (click)="turnLed('off')" [disabled]="busy()">
+          Cerrar
+        </button>
+      </div>
+
+      <button type="button" class="ghost refresh" (click)="refreshHistory()" [disabled]="loadingHistory()">
+        {{ loadingHistory() ? 'Cargando historial...' : 'Actualizar historial' }}
+      </button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Historial</h2>
+      <p>Estado, Origen y Fecha</p>
+    </div>
+
+    @if (history().length === 0) {
+      <div class="empty-state">
+        Aún no hay registros actualmente.
+      </div>
+    } @else {
+      <div class="history-list">
+        @for (item of history(); track item._id ?? item.timestamp) {
+          <article class="history-item">
+            <div>
+              <strong>{{ item.action === 'on' ? 'ABIERTO' : 'CERRADO' }}</strong>
+              <span>{{ item.source == 'button' ? 'Desde la Cerradura' : 'Desde el Servidor' }}</span>
+            </div>
+            <div>
+              <span>Registro recibido </span>
+              <time>{{ formatTimestamp(item.timestamp) }}</time>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
+</main>

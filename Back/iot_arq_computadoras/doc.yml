@@ -1,0 +1,328 @@
+openapi: 3.0.3
+info:
+  title: API IoT Cerradura Electrónica (ESP32 + NestJS)
+  version: 1.0.0
+  description: Documentación completa de autenticación JWT y control del ESP32. Incluye ejemplos de respuestas y errores.
+servers:
+  - url: http://localhost:3000
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar usuario
+      description: Crear un nuevo usuario en la base de datos. Devuelve el usuario creado (sin password).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDto'
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+              examples:
+                success:
+                  summary: Usuario creado
+                  value:
+                    id: "648a1f2b5e3a9c001234abcd"
+                    username: "demo"
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingPassword:
+                  value:
+                    statusCode: 400
+                    error: "Bad Request"
+                    message: "password should not be empty"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión y obtener JWT
+      description: Valida las credenciales y devuelve un token JWT para usar en endpoints protegidos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginDto'
+      responses:
+        '201':
+          description: Token generado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              examples:
+                success:
+                  value:
+                    accessToken: "eyJhbGciOiJI..."
+                    user:
+                      id: "648a1f2b5e3a9c001234abcd"
+                      username: "demo"
+        '401':
+          description: Credenciales inválidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid:
+                  value:
+                    statusCode: 401
+                    error: "Unauthorized"
+                    message: "Invalid username or password"
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Usuario autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Datos del usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '401':
+          description: Token ausente o inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing:
+                  value:
+                    statusCode: 401
+                    error: "Unauthorized"
+                    message: "Authorization header missing or invalid"
+
+  /esp/rele:
+    get:
+      tags: [ESP]
+      summary: Cambiar estado de la cerradura del ESP32
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: state
+          required: true
+          schema:
+            type: string
+            enum: [on, off]
+          description: Estado deseado de la cerradura. `on` = encender, `off` = apagar.
+      responses:
+        '200':
+          description: Estado aplicado correctamente en el ESP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EspReleResponse'
+              examples:
+                on:
+                  value:
+                    success: true
+                    action: "on"
+                    forwarded: true
+                    espResponse: "OK"
+        '400':
+          description: Parámetro inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidParam:
+                  value:
+                    statusCode: 400
+                    error: "Bad Request"
+                    message: "Query parameter 'state' must be 'on' or 'off'"
+        '401':
+          description: No autorizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /esp/logs:
+    get:
+      tags: [ESP]
+      summary: Obtener historial
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: Lista de logs guardados en MongoDB (orden descendente por fecha)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EspLog'
+              examples:
+                sample:
+                  value:
+                    - _id: "648b2f4a5e3a9c001234abce"
+                      action: "on"
+                      source: "esp32-1"
+                      timestamp: "2026-05-21T12:00:00.000Z"
+                    - _id: "648b2f495e3a9c001234abcf"
+                      action: "off"
+                      source: "esp32-1"
+                      timestamp: "2026-05-21T11:58:00.000Z"
+        '401':
+          description: No autorizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /esp/receive-state:
+    post:
+      tags: [ESP]
+      summary: Endpoint para callback del ESP32
+      description: Punto público que el ESP puede llamar para notificar cambios o eventos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EspReceiveDto'
+      responses:
+        '201':
+          description: Log almacenado en MongoDB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EspLog'
+              examples:
+                created:
+                  value:
+                    _id: "648b2f4a5e3a9c001234abce"
+                    action: "on"
+                    source: "esp32-1"
+                    timestamp: "2026-05-21T12:00:00.000Z"
+        '400':
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingAction:
+                  value:
+                    statusCode: 400
+                    error: "Bad Request"
+                    message: "'action' is required and must be 'on' or 'off'"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  headers:
+    AuthorizationHeader:
+      description: 'Bearer token: "Authorization: Bearer <token>"'
+      schema:
+        type: string
+  schemas:
+    RegisterDto:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: demo
+        password:
+          type: string
+          example: demo123
+    LoginDto:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: demo
+        password:
+          type: string
+          example: demo123
+    UserDto:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserDto'
+    ErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+    EspReceiveDto:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [on, off]
+          example: on
+        source:
+          type: string
+          example: esp32-1
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-05-21T12:00:00Z'
+    EspLog:
+      type: object
+      properties:
+        _id:
+          type: string
+        action:
+          type: string
+          enum: [on, off]
+        source:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    EspReleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        action:
+          type: string
+        forwarded:
+          type: boolean
+        espResponse:
+          type: string

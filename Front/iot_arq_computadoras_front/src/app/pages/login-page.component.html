@@ -1,0 +1,31 @@
+<main class="auth-shell">
+  <section class="auth-card">
+    <p class="eyebrow">Control de Acceso</p>
+    <h1>Iniciar sesión</h1>
+    <p class="lead">Ingresa tu usuario y contraseña</p>
+
+    @if (info()) {
+      <p class="message success">{{ info() }}</p>
+    }
+
+    @if (error()) {
+      <p class="message error">{{ error() }}</p>
+    }
+
+    <label>
+      Usuario
+      <input type="text" [value]="username()" (input)="onUsernameChange($any($event.target).value)" />
+    </label>
+
+    <label>
+      Contraseña
+      <input type="password" [value]="password()" (input)="onPasswordChange($any($event.target).value)" />
+    </label>
+
+    <button type="button" class="primary" (click)="login()" [disabled]="busy()">
+      {{ busy() ? 'Entrando...' : 'Entrar' }}
+    </button>
+
+    <p class="footer">¿No tienes cuenta? <a routerLink="/register">Regístrate</a></p>
+  </section>
+</main>
