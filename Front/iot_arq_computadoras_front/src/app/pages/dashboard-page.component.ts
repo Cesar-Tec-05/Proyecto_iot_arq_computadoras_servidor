@@ -1,8 +1,7 @@
-import { Component, OnInit, OnDestroy, PLATFORM_ID, inject, signal } from '@angular/core';
+import { Component, OnInit, PLATFORM_ID, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { Subscription } from 'rxjs';
 import { EspApiService, EspLogEntry, LedState } from '../esp-api.service';
 import { AuthService } from '../auth.service';
 
@@ -12,7 +11,7 @@ import { AuthService } from '../auth.service';
   templateUrl: './dashboard-page.component.html',
   styleUrl: './dashboard-page.component.css'
 })
-export class DashboardPageComponent implements OnInit, OnDestroy {
+export class DashboardPageComponent implements OnInit {
   private readonly api = inject(EspApiService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
@@ -24,7 +23,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   protected readonly status = signal('Listo para Comunicarte con la Cerradura :D');
   protected readonly error = signal('');
   protected readonly history = signal<EspLogEntry[]>([]);
-  private logsSub?: Subscription;
 
   async ngOnInit() {
     if (!isPlatformBrowser(this.platformId)) {
@@ -32,26 +30,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     }
 
     await this.refreshHistory();
-    // Suscribirse a actualizaciones en tiempo real (EventSource) solo en navegador
-    this.logsSub = this.api.listenLogs().subscribe({
-      next: (entry) => {
-        // Remover entradas optimistas cercanas al evento real para evitar duplicados
-        this.history.update((h) => {
-          const filtered = h.filter(
-            (e) => !(e._optimistic && e.action === entry.action && Math.abs(new Date(e.timestamp).getTime() - new Date(entry.timestamp).getTime()) < 5000),
-          );
-          return [entry, ...filtered].slice(0, 100);
-        });
-        this.ledState.set(entry.action);
-      },
-      error: () => {
-        // noop: si falla la conexión SSE, no bloquear la UI
-      },
-    });
-  }
-
-  ngOnDestroy(): void {
-    this.logsSub?.unsubscribe();
   }
 
   logout() {
@@ -67,15 +45,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       await firstValueFrom(this.api.toggleLed(state));
       this.ledState.set(state);
       this.status.set(`Cerradura ${state === 'on' ? 'abierta' : 'cerrada'}`);
-
-      // Añadir entrada optimista local para dar feedback inmediato al usuario.
-      const optimistic: EspLogEntry = {
-        action: state,
-        source: 'client',
-        timestamp: new Date().toISOString(),
-        _optimistic: true,
-      };
-      this.history.update((h) => [optimistic, ...h].slice(0, 100));
+      await this.refreshHistory();
     } catch (error) {
       this.error.set(this.describeError(error));
       this.status.set('No se pudo comunicar con el con la cerradura, comunicate con soporte');

@@ -6,7 +6,6 @@ import {
 } from '@angular/ssr/node';
 import express from 'express';
 import { join } from 'node:path';
-import { Readable } from 'node:stream';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
@@ -47,22 +46,6 @@ app.use('/api', async (req, res, next) => {
         res.setHeader(key, value);
       }
     });
-
-    const contentType = response.headers.get('content-type') ?? '';
-
-    // Si la respuesta es un stream SSE, pasarla directamente al cliente sin bufferizar
-    if (contentType.includes('text/event-stream') && response.body) {
-      response.headers.forEach((value, key) => {
-        if (!['connection', 'content-encoding', 'transfer-encoding'].includes(key.toLowerCase())) {
-          res.setHeader(key, value);
-        }
-      });
-
-      res.status(response.status);
-      const nodeStream = Readable.fromWeb(response.body as any);
-      nodeStream.pipe(res);
-      return;
-    }
 
     const buffer = Buffer.from(await response.arrayBuffer());
     res.send(buffer);
